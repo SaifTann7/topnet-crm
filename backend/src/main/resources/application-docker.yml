@@ -1,0 +1,43 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:postgres}:${POSTGRES_PORT:5432}/${POSTGRES_DB:topnet_crm}
+    username: ${POSTGRES_USER:topnet}
+    password: ${POSTGRES_PASSWORD:topnet123}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      pool-name: TopnetCrmPool
+  jpa:
+    show-sql: false
+    properties:
+      hibernate:
+        jdbc:
+          batch_size: 25
+
+logging:
+  level:
+    root: INFO
+    com.topnet.crm: INFO
+    org.springframework.security: WARN
+    org.hibernate.SQL: WARN
+
+management:
+  endpoint:
+    health:
+      show-details: always
+      show-components: always
+      probes:
+        enabled: true
+  health:
+    livenessState:
+      enabled: true
+    readinessState:
+      enabled: true
+
+topnet:
+  apm:
+    base-url: ${TOPNET_APM_BASE_URL:http://localhost:8080}

@@ -1,0 +1,16 @@
+# HTTP-only mode — serves the full application on port 80
+# Used when NGINX_SSL_ENABLED=false
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name _;
+
+    location /health {
+        access_log off;
+        default_type text/plain;
+        return 200 'ok';
+    }
+
+    include /etc/nginx/conf.d/locations.inc;
+}

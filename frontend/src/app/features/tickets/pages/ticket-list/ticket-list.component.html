@@ -1,0 +1,324 @@
+<app-page-header title="Ticket Management" description="Track, assign, and resolve support tickets with full activity history">
+  <app-button (click)="openCreate()">+ New Ticket</app-button>
+</app-page-header>
+
+@if (toast()) {
+  <div class="toast" [class.toast-success]="toast()!.type === 'success'" [class.toast-error]="toast()!.type === 'error'">
+    {{ toast()!.message }}
+  </div>
+}
+
+<section class="stats-grid">
+  @if (statsLoading()) {
+    <div class="col-span-full flex justify-center py-6"><app-loading-spinner /></div>
+  } @else if (stats()) {
+    <app-kpi-card label="Total Tickets" [value]="stats()!.total" icon="🎫" accent="#2563eb" />
+    <app-kpi-card label="Open" [value]="stats()!.open" icon="📥" accent="#0ea5e9" hint="Awaiting action" />
+    <app-kpi-card label="In Progress" [value]="stats()!.inProgress" icon="⚡" accent="#f59e0b" />
+    <app-kpi-card label="Resolved" [value]="stats()!.resolved" icon="✅" accent="#10b981" />
+    <app-kpi-card label="Unassigned" [value]="stats()!.unassigned" icon="👤" accent="#ef4444" hint="Needs owner" />
+  }
+</section>
+
+<section class="toolbar">
+  <div class="toolbar-search">
+    <svg class="toolbar-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+    </svg>
+    <input
+      class="app-input toolbar-input"
+      placeholder="Search ticket #, subject, customer, assignee..."
+      [value]="search()"
+      (input)="onSearch($event)"
+    />
+  </div>
+
+  <select class="app-input filter-select" [value]="statusFilter()" (change)="statusFilter.set($any($event.target).value); onFilterChange()">
+    <option value="">All statuses</option>
+    @for (s of statuses; track s) {
+      <option [value]="s">{{ s.replace('_', ' ') }}</option>
+    }
+  </select>
+
+  <select class="app-input filter-select" [value]="priorityFilter()" (change)="priorityFilter.set($any($event.target).value); onFilterChange()">
+    <option value="">All priorities</option>
+    @for (p of priorities; track p) {
+      <option [value]="p">{{ p }}</option>
+    }
+  </select>
+
+  <select class="app-input filter-select" [value]="customerFilter()" (change)="customerFilter.set($any($event.target).value); onFilterChange()">
+    <option value="">All customers</option>
+    @for (c of customerOptions(); track c.id) {
+      <option [value]="c.id">{{ c.companyName }}</option>
+    }
+  </select>
+
+  <select
+    class="app-input filter-select"
+    [value]="assigneeFilter()"
+    [disabled]="unassignedOnly()"
+    (change)="assigneeFilter.set($any($event.target).value); onFilterChange()"
+  >
+    <option value="">All assignees</option>
+    @for (u of assignableUsers(); track u.id) {
+      <option [value]="u.id">{{ u.fullName }}</option>
+    }
+  </select>
+
+  <label class="unassigned-toggle">
+    <input type="checkbox" [checked]="unassignedOnly()" (change)="onUnassignedToggle($event)" />
+    Unassigned only
+  </label>
+
+  <button type="button" class="clear-link" (click)="clearFilters()">Clear</button>
+</section>
+
+@if (loading()) {
+  <app-loading-spinner />
+} @else if (tickets().length === 0) {
+  <app-empty-state title="No tickets found" description="Adjust filters or create a new support ticket.">
+    <app-button (click)="openCreate()">Create Ticket</app-button>
+  </app-empty-state>
+} @else {
+  <app-data-table
+    [columns]="columns"
+    [data]="tickets()"
+    [sortColumn]="sortColumn()"
+    [sortDirection]="sortDirection()"
+    [trackBy]="trackById"
+    (sortChange)="onSort($event)"
+  >
+    <ng-template #cellTemplate let-row let-column="column">
+      @if (column.key === 'ticketNumber') {
+        <button type="button" class="ticket-link" (click)="openDetail(row)">{{ row.ticketNumber }}</button>
+      } @else if (column.key === 'subject') {
+        <button type="button" class="subject-link" (click)="openDetail(row)">{{ row.subject }}</button>
+      } @else if (column.key === 'priority') {
+        <app-badge [label]="row.priority" [tone]="priorityTone(row.priority)" />
+      } @else if (column.key === 'status') {
+        <app-badge [label]="row.status.replace('_', ' ')" [tone]="statusTone(row.status)" />
+      } @else if (column.cell) {
+        {{ column.cell(row) }}
+      } @else {
+        {{ $any(row)[column.key] || '—' }}
+      }
+    </ng-template>
+
+    <ng-template #rowActions let-ticket>
+      <div class="action-group">
+        @if (ticket.status === 'OPEN') {
+          <button type="button" class="action-link" (click)="updateStatus(ticket, 'IN_PROGRESS')">Start</button>
+        }
+        @if (ticket.status === 'IN_PROGRESS') {
+          <button type="button" class="action-link action-success" (click)="updateStatus(ticket, 'RESOLVED')">Resolve</button>
+        }
+        @if (ticket.status === 'RESOLVED') {
+          <button type="button" class="action-link" (click)="updateStatus(ticket, 'CLOSED')">Close</button>
+        }
+        <button type="button" class="action-link" (click)="openDetail(ticket)">View</button>
+        <button type="button" class="action-link" (click)="openEdit(ticket)">Edit</button>
+        <button type="button" class="action-link action-danger" (click)="openDeleteConfirm(ticket)">Delete</button>
+      </div>
+    </ng-template>
+  </app-data-table>
+
+  <div class="pagination">
+    <div class="pagination-meta">
+      <span>{{ totalElements() }} tickets</span>
+      <label class="flex items-center gap-2">
+        Rows
+        <select class="app-input page-size-select" [value]="pageSize()" (change)="onPageSizeChange($event)">
+          <option [value]="10">10</option>
+          <option [value]="20">20</option>
+          <option [value]="50">50</option>
+        </select>
+      </label>
+    </div>
+    <div class="pagination-controls">
+      <span>Page {{ page() + 1 }} of {{ totalPages() }}</span>
+      <app-button variant="secondary" [disabled]="page() === 0" (click)="changePage(page() - 1)">Previous</app-button>
+      <app-button variant="secondary" [disabled]="page() >= totalPages() - 1" (click)="changePage(page() + 1)">Next</app-button>
+    </div>
+  </div>
+}
+
+<!-- Create / Edit modal -->
+<app-modal [open]="modalOpen()" [title]="editing() ? 'Edit Ticket' : 'New Ticket'" (close)="closeModal()">
+  @if (formError()) {
+    <app-alert class="mb-4 block" [message]="formError()!" type="error" />
+  }
+  <form [formGroup]="form" class="form-grid" (ngSubmit)="save()">
+    <div class="form-field sm:col-span-2">
+      <label>Customer <span class="required">*</span></label>
+      <select class="app-input" formControlName="customerId" [class.input-error]="fieldError('customerId')">
+        <option value="" disabled>Select customer</option>
+        @for (c of customerOptions(); track c.id) {
+          <option [value]="c.id">{{ c.companyName }}</option>
+        }
+      </select>
+      @if (fieldError('customerId')) { <span class="field-error">{{ fieldError('customerId') }}</span> }
+    </div>
+    <div class="form-field sm:col-span-2">
+      <label>Subject <span class="required">*</span></label>
+      <input class="app-input" formControlName="subject" [class.input-error]="fieldError('subject')" />
+      @if (fieldError('subject')) { <span class="field-error">{{ fieldError('subject') }}</span> }
+    </div>
+    <div class="form-field sm:col-span-2">
+      <label>Description</label>
+      <textarea class="app-input min-h-[100px] resize-y" formControlName="description"></textarea>
+    </div>
+    <div class="form-field">
+      <label>Priority</label>
+      <select class="app-input" formControlName="priority">
+        @for (p of priorities; track p) {
+          <option [value]="p">{{ p }}</option>
+        }
+      </select>
+    </div>
+    <div class="form-field">
+      <label>Assigned To</label>
+      <select class="app-input" formControlName="assignedToId">
+        <option value="">Unassigned</option>
+        @for (u of assignableUsers(); track u.id) {
+          <option [value]="u.id">{{ u.fullName }}</option>
+        }
+      </select>
+    </div>
+  </form>
+  <div modal-footer class="flex justify-end gap-2">
+    <app-button variant="secondary" (click)="closeModal()">Cancel</app-button>
+    <app-button [loading]="saving()" (click)="save()">{{ editing() ? 'Save Changes' : 'Create Ticket' }}</app-button>
+  </div>
+</app-modal>
+
+<!-- Detail slide-over -->
+@if (detailOpen() && selected()) {
+  <div class="detail-overlay" (click)="closeDetail()"></div>
+  <aside class="detail-panel" role="dialog" aria-label="Ticket details">
+    <header class="detail-header">
+      <div>
+        <p class="detail-number">{{ selected()!.ticketNumber }}</p>
+        <h2 class="detail-title">{{ selected()!.subject }}</h2>
+        <div class="detail-badges">
+          <app-badge [label]="selected()!.priority" [tone]="priorityTone(selected()!.priority)" />
+          <app-badge [label]="selected()!.status.replace('_', ' ')" [tone]="statusTone(selected()!.status)" />
+        </div>
+      </div>
+      <button type="button" class="detail-close" (click)="closeDetail()">✕</button>
+    </header>
+
+    <div class="detail-meta">
+      <div><span class="meta-label">Customer</span><span>{{ selected()!.customerName }}</span></div>
+      <div><span class="meta-label">Assigned</span><span>{{ selected()!.assignedToName || 'Unassigned' }}</span></div>
+      <div><span class="meta-label">Created</span><span>{{ selected()!.createdAt | date: 'medium' }}</span></div>
+      @if (selected()!.resolvedAt) {
+        <div><span class="meta-label">Resolved</span><span>{{ selected()!.resolvedAt | date: 'medium' }}</span></div>
+      }
+    </div>
+
+    <div class="status-actions">
+      @if (selected()!.status === 'OPEN') {
+        <app-button (click)="updateStatus(selected()!, 'IN_PROGRESS')">Start Progress</app-button>
+      }
+      @if (selected()!.status === 'IN_PROGRESS') {
+        <app-button (click)="updateStatus(selected()!, 'RESOLVED')">Mark Resolved</app-button>
+      }
+      @if (selected()!.status === 'RESOLVED') {
+        <app-button variant="secondary" (click)="updateStatus(selected()!, 'CLOSED')">Close Ticket</app-button>
+      }
+      @if (selected()!.status === 'CLOSED') {
+        <app-button variant="secondary" (click)="updateStatus(selected()!, 'OPEN')">Reopen</app-button>
+      }
+      <app-button variant="secondary" (click)="openEdit(selected()!)">Edit</app-button>
+    </div>
+
+    <nav class="detail-tabs">
+      <button type="button" [class.active]="detailTab() === 'details'" (click)="setDetailTab('details')">Details</button>
+      <button type="button" [class.active]="detailTab() === 'timeline'" (click)="setDetailTab('timeline')">Timeline</button>
+      <button type="button" [class.active]="detailTab() === 'comments'" (click)="setDetailTab('comments')">Comments</button>
+    </nav>
+
+    <div class="detail-body">
+      @if (detailTab() === 'details') {
+        <div class="detail-description">
+          <h3>Description</h3>
+          <p>{{ selected()!.description || 'No description provided.' }}</p>
+        </div>
+      }
+
+      @if (detailTab() === 'timeline') {
+        @if (detailLoading() && timeline().length === 0) {
+          <app-loading-spinner />
+        } @else if (timeline().length === 0) {
+          <p class="empty-text">No activity recorded yet.</p>
+        } @else {
+          <div class="timeline">
+            @for (item of timeline(); track item.id) {
+              <div class="timeline-item">
+                <div class="timeline-icon">{{ activityIcon(item.activityType) }}</div>
+                <div class="timeline-content">
+                  <div class="timeline-header">
+                    <span class="timeline-type">{{ activityLabel(item.activityType) }}</span>
+                    <span class="timeline-time">{{ item.performedAt | date: 'medium' }}</span>
+                  </div>
+                  @if (item.description) {
+                    <p class="timeline-desc">{{ item.description }}</p>
+                  }
+                  @if (item.fieldName && (item.oldValue || item.newValue)) {
+                    <p class="timeline-change">
+                      <span class="old-val">{{ item.oldValue || '—' }}</span>
+                      →
+                      <span class="new-val">{{ item.newValue || '—' }}</span>
+                    </p>
+                  }
+                  <p class="timeline-by">by {{ item.performedBy }}</p>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      }
+
+      @if (detailTab() === 'comments') {
+        <form [formGroup]="commentForm" class="comment-form" (ngSubmit)="submitComment()">
+          @if (commentError()) {
+            <app-alert class="mb-3 block" [message]="commentError()!" type="error" />
+          }
+          <textarea class="app-input min-h-[80px] resize-y" formControlName="body" placeholder="Write a comment..."></textarea>
+          <div class="comment-actions">
+            <app-button [loading]="commenting()" [disabled]="commentForm.invalid">Post Comment</app-button>
+          </div>
+        </form>
+
+        @if (comments().length === 0) {
+          <p class="empty-text">No comments yet. Be the first to comment.</p>
+        } @else {
+          <div class="comments-list">
+            @for (comment of comments(); track comment.id) {
+              <article class="comment-card">
+                <header class="comment-header">
+                  <span class="comment-author">{{ comment.authorName }}</span>
+                  <span class="comment-time">{{ comment.createdAt | date: 'medium' }}</span>
+                </header>
+                <p class="comment-body">{{ comment.body }}</p>
+              </article>
+            }
+          </div>
+        }
+      }
+    </div>
+  </aside>
+}
+
+<app-confirm-dialog
+  [open]="confirmOpen()"
+  title="Delete ticket?"
+  [message]="deleteConfirmMessage()"
+  confirmLabel="Delete"
+  cancelLabel="Cancel"
+  tone="danger"
+  [loading]="deleting()"
+  (confirm)="confirmDelete()"
+  (cancel)="cancelDelete()"
+/>

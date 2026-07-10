@@ -1,0 +1,94 @@
+:host {
+  display: block;
+}
+
+.login-mesh {
+  background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 40%, #172554 70%, #0f172a 100%);
+  background-size: 200% 200%;
+  animation: gradient-shift 12s ease infinite;
+}
+
+.login-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  pointer-events: none;
+
+  &--1 {
+    top: 10%;
+    left: 15%;
+    width: 320px;
+    height: 320px;
+    background: rgba(59, 130, 246, 0.35);
+    animation: float 8s ease-in-out infinite;
+  }
+
+  &--2 {
+    bottom: 20%;
+    right: 10%;
+    width: 280px;
+    height: 280px;
+    background: rgba(99, 102, 241, 0.25);
+    animation: float 10s ease-in-out 2s infinite;
+  }
+
+  &--3 {
+    top: 50%;
+    left: 50%;
+    width: 200px;
+    height: 200px;
+    background: rgba(14, 165, 233, 0.2);
+    animation: pulse-soft 4s ease-in-out infinite;
+  }
+}
+
+.login-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+.login-spinner {
+  animation: spin 0.9s linear infinite;
+}
+
+.login-error--shake {
+  animation: shake 0.45s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-6px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(4px); }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-20px) scale(1.03); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.65; }
+}
+
+@keyframes gradient-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes fade-up {
+  0% { opacity: 0; transform: translateY(16px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.login-submit:not(:disabled):hover {
+  box-shadow: 0 10px 30px -8px rgba(37, 99, 235, 0.55);
+}

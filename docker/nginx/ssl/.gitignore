@@ -1,0 +1,5 @@
+# Keep ssl directory in git (certificates are gitignored)
+*
+!.gitignore
+!README.md
+!generate-self-signed.sh

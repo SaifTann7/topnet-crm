@@ -1,0 +1,23 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+ARCHITECTURE.md
+
+# Environment (never bake secrets into images)
+.env
+.env.*
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# Docker
+docker-compose*.yml
+docker/
+
+# CI
+.github/

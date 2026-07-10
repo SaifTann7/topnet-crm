@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DB:topnet_crm}
+    username: ${POSTGRES_USER:topnet}
+    password: ${POSTGRES_PASSWORD:topnet123}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    show-sql: true
+
+logging:
+  level:
+    com.topnet.crm: DEBUG

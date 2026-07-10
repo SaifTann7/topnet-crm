@@ -1,0 +1,170 @@
+@if (loading()) {
+  <app-loading-spinner message="Loading dashboard..." />
+} @else if (error()) {
+  <app-alert [message]="error()!" type="error" />
+} @else if (stats(); as data) {
+  <div class="dashboard-page space-y-6">
+    <!-- Header -->
+    <div class="dashboard-header flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p class="text-sm font-semibold uppercase tracking-wider text-brand-600 dark:text-brand-400">Overview</p>
+        <h1 class="mt-1 text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">TOPNET CRM Dashboard</h1>
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Real-time insights across customers, tickets, and revenue.</p>
+      </div>
+      <div class="flex gap-2">
+        <a routerLink="/customers" class="app-btn-secondary text-sm">+ Customer</a>
+        <a routerLink="/tickets" class="app-btn-primary text-sm">+ Ticket</a>
+      </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <app-kpi-card
+        label="Customers"
+        [value]="data.totalCustomers"
+        icon="👥"
+        hint="{{ data.activeCustomers }} active"
+        trend="+{{ data.activeCustomers }} active accounts"
+        accent="#2563eb"
+        delay="0ms"
+      />
+      <app-kpi-card
+        label="Tickets"
+        [value]="data.totalTickets"
+        icon="🎫"
+        hint="{{ data.openTickets }} open"
+        trend="{{ data.inProgressTickets }} in progress"
+        accent="#7c3aed"
+        delay="80ms"
+      />
+      <app-kpi-card
+        label="Revenue"
+        [value]="revenueFormatted()"
+        icon="💰"
+        hint="Estimated ARR"
+        trend="Based on active contracts"
+        accent="#059669"
+        delay="160ms"
+      />
+      <app-kpi-card
+        label="Active Users"
+        [value]="data.totalUsers"
+        icon="👤"
+        hint="Team members"
+        trend="Currently active"
+        accent="#d97706"
+        delay="240ms"
+      />
+    </div>
+
+    <!-- Charts -->
+    <div class="grid gap-6 lg:grid-cols-2">
+      <div class="dashboard-card rounded-2xl border border-slate-200/80 bg-white p-6 shadow-card dark:border-slate-800 dark:bg-slate-900">
+        <h3 class="text-base font-semibold text-slate-900 dark:text-white">Tickets by Status</h3>
+        <p class="mt-1 text-sm text-slate-500">Distribution across workflow stages</p>
+        <div class="mt-6">
+          <app-donut-chart [segments]="store.statusChart()" />
+        </div>
+      </div>
+
+      <div class="dashboard-card rounded-2xl border border-slate-200/80 bg-white p-6 shadow-card dark:border-slate-800 dark:bg-slate-900">
+        <h3 class="text-base font-semibold text-slate-900 dark:text-white">Tickets by Priority</h3>
+        <p class="mt-1 text-sm text-slate-500">Workload severity breakdown</p>
+        <div class="mt-6">
+          <app-bar-chart [segments]="store.priorityChart()" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent + Notifications + Profile -->
+    <div class="grid gap-6 xl:grid-cols-3">
+      <!-- Recent Tickets -->
+      <div class="dashboard-card rounded-2xl border border-slate-200/80 bg-white shadow-card dark:border-slate-800 dark:bg-slate-900 xl:col-span-1">
+        <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-800">
+          <h3 class="font-semibold text-slate-900 dark:text-white">Recent Tickets</h3>
+          <a routerLink="/tickets" class="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400">View all</a>
+        </div>
+        <div class="divide-y divide-slate-100 dark:divide-slate-800">
+          @for (ticket of data.recentTickets; track ticket.id) {
+            <div class="dashboard-row px-6 py-4 transition hover:bg-slate-50 dark:hover:bg-slate-800/50">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-medium text-slate-900 dark:text-white">{{ ticket.subject }}</p>
+                  <p class="mt-0.5 font-mono text-xs text-slate-400">{{ ticket.ticketNumber }}</p>
+                </div>
+                <app-badge [label]="ticket.priority" [tone]="priorityTone(ticket.priority)" />
+              </div>
+              <div class="mt-2 flex items-center justify-between">
+                <span class="text-xs text-slate-500">{{ ticket.customerName }}</span>
+                <app-badge [label]="ticket.status" [tone]="statusTone(ticket.status)" />
+              </div>
+            </div>
+          } @empty {
+            <p class="px-6 py-10 text-center text-sm text-slate-400">No tickets yet</p>
+          }
+        </div>
+      </div>
+
+      <!-- Recent Customers -->
+      <div class="dashboard-card rounded-2xl border border-slate-200/80 bg-white shadow-card dark:border-slate-800 dark:bg-slate-900 xl:col-span-1">
+        <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-800">
+          <h3 class="font-semibold text-slate-900 dark:text-white">Recent Customers</h3>
+          <a routerLink="/customers" class="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400">View all</a>
+        </div>
+        <div class="divide-y divide-slate-100 dark:divide-slate-800">
+          @for (customer of data.recentCustomers; track customer.id) {
+            <div class="dashboard-row px-6 py-4 transition hover:bg-slate-50 dark:hover:bg-slate-800/50">
+              <div class="flex items-center gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-sm font-bold text-brand-700 dark:bg-brand-950/50 dark:text-brand-300">
+                  {{ customer.companyName[0] }}
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="truncate text-sm font-medium text-slate-900 dark:text-white">{{ customer.companyName }}</p>
+                  <p class="truncate text-xs text-slate-500">{{ customer.contactName }} · {{ customer.email }}</p>
+                </div>
+                <app-badge [label]="customer.status" [tone]="statusTone(customer.status)" />
+              </div>
+            </div>
+          } @empty {
+            <p class="px-6 py-10 text-center text-sm text-slate-400">No customers yet</p>
+          }
+        </div>
+      </div>
+
+      <!-- Notifications + Profile -->
+      <div class="space-y-6 xl:col-span-1">
+        <div class="dashboard-card rounded-2xl border border-slate-200/80 bg-white shadow-card dark:border-slate-800 dark:bg-slate-900">
+          <div class="border-b border-slate-200 px-6 py-4 dark:border-slate-800">
+            <h3 class="font-semibold text-slate-900 dark:text-white">Notifications</h3>
+          </div>
+          <div class="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+            @for (n of data.notifications; track n.id) {
+              <div class="dashboard-row px-6 py-3.5">
+                <p class="text-sm font-medium text-slate-900 dark:text-white">{{ n.title }}</p>
+                <p class="mt-0.5 text-xs text-slate-500">{{ n.message }}</p>
+              </div>
+            } @empty {
+              <p class="px-6 py-8 text-center text-sm text-slate-400">All caught up</p>
+            }
+          </div>
+        </div>
+
+        <div class="dashboard-card rounded-2xl border border-slate-200/80 bg-gradient-to-br from-brand-600 to-brand-800 p-6 text-white shadow-elevated">
+          <p class="text-xs font-semibold uppercase tracking-wider text-blue-200">Your Profile</p>
+          <div class="mt-4 flex items-center gap-4">
+            <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 text-lg font-bold ring-1 ring-white/20">
+              {{ auth.user()?.firstName?.[0] }}{{ auth.user()?.lastName?.[0] }}
+            </div>
+            <div>
+              <p class="text-lg font-bold">{{ auth.fullName() }}</p>
+              <p class="text-sm text-blue-100">{{ auth.user()?.email }}</p>
+            </div>
+          </div>
+          <a routerLink="/profile" class="mt-5 inline-flex items-center gap-1 rounded-xl bg-white/15 px-4 py-2 text-sm font-medium ring-1 ring-white/20 transition hover:bg-white/25">
+            Manage profile →
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+}

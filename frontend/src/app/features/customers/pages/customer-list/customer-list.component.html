@@ -1,0 +1,263 @@
+<app-page-header title="Customer Management" description="Full CRUD with search, filters, sorting, CSV import/export, and audit trail">
+  <div class="flex flex-wrap items-center gap-2">
+    <label class="cursor-pointer">
+      <input type="file" accept=".csv,text/csv" class="hidden" (change)="onImportFile($event)" />
+      <span class="app-btn-secondary inline-flex items-center gap-2" [class.opacity-60]="importing()">
+        @if (importing()) {
+          <span class="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent"></span>
+        }
+        Import CSV
+      </span>
+    </label>
+    <app-button variant="secondary" [loading]="exporting()" (click)="exportCsv()">Export CSV</app-button>
+    <app-button (click)="openCreate()">+ New Customer</app-button>
+  </div>
+</app-page-header>
+
+@if (toast()) {
+  <div
+    class="toast"
+    [class.toast-success]="toast()!.type === 'success'"
+    [class.toast-error]="toast()!.type === 'error'"
+  >
+    {{ toast()!.message }}
+  </div>
+}
+
+@if (importResult()) {
+  <app-alert
+    class="mb-4 block"
+    [type]="importResult()!.failureCount > 0 ? 'warning' : 'success'"
+    [message]="
+      'Imported ' +
+      importResult()!.successCount +
+      ' of ' +
+      importResult()!.totalRows +
+      ' rows.' +
+      (importResult()!.errors.length ? ' See details below.' : '')
+    "
+  />
+  @if (importResult()!.errors.length) {
+    <div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
+      <ul class="list-inside list-disc space-y-1">
+        @for (err of importResult()!.errors; track err) {
+          <li>{{ err }}</li>
+        }
+      </ul>
+    </div>
+  }
+}
+
+<section class="toolbar">
+  <div class="toolbar-search">
+    <svg class="toolbar-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+    </svg>
+    <input
+      class="app-input toolbar-input"
+      placeholder="Search company, contact, email, city..."
+      [value]="search()"
+      (input)="onSearch($event)"
+    />
+  </div>
+
+  <select class="app-input filter-select" [value]="statusFilter()" (change)="statusFilter.set($any($event.target).value); onFilterChange()">
+    <option value="">All statuses</option>
+    @for (s of statuses; track s) {
+      <option [value]="s">{{ s }}</option>
+    }
+  </select>
+
+  <select class="app-input filter-select" [value]="industryFilter()" (change)="industryFilter.set($any($event.target).value); onFilterChange()">
+    <option value="">All industries</option>
+    @for (i of industries; track i) {
+      <option [value]="i">{{ i }}</option>
+    }
+  </select>
+
+  <select class="app-input filter-select" [value]="countryFilter()" (change)="countryFilter.set($any($event.target).value); onFilterChange()">
+    <option value="">All countries</option>
+    @for (c of countries; track c) {
+      <option [value]="c">{{ c }}</option>
+    }
+  </select>
+
+  <button type="button" class="text-sm text-slate-500 hover:text-brand-600" (click)="clearFilters()">Clear filters</button>
+</section>
+
+@if (loading()) {
+  <app-loading-spinner />
+} @else if (customers().length === 0) {
+  <app-empty-state title="No customers found" description="Adjust your filters or create a new customer.">
+    <app-button (click)="openCreate()">Create Customer</app-button>
+  </app-empty-state>
+} @else {
+  <app-data-table
+    [columns]="columns"
+    [data]="customers()"
+    [sortColumn]="sortColumn()"
+    [sortDirection]="sortDirection()"
+    [trackBy]="trackById"
+    (sortChange)="onSort($event)"
+  >
+    <ng-template #cellTemplate let-row let-column="column">
+      @if (column.key === 'status') {
+        <app-badge [label]="row.status" [tone]="statusTone(row.status)" />
+      } @else if (column.cell) {
+        {{ column.cell(row) }}
+      } @else {
+        {{ $any(row)[column.key] || '—' }}
+      }
+    </ng-template>
+
+    <ng-template #rowActions let-customer>
+      <div class="action-group">
+        <button type="button" class="action-link" (click)="openEdit(customer)">Edit</button>
+        <button type="button" class="action-link" (click)="openAudit(customer)">Audit</button>
+        <button type="button" class="action-link action-danger" (click)="openDeleteConfirm(customer)">Delete</button>
+      </div>
+    </ng-template>
+  </app-data-table>
+
+  <div class="pagination">
+    <div class="pagination-meta">
+      <span>{{ totalElements() }} customers</span>
+      <label class="flex items-center gap-2">
+        Rows
+        <select class="app-input page-size-select" [value]="pageSize()" (change)="onPageSizeChange($event)">
+          <option [value]="10">10</option>
+          <option [value]="20">20</option>
+          <option [value]="50">50</option>
+        </select>
+      </label>
+    </div>
+    <div class="pagination-controls">
+      <span>Page {{ page() + 1 }} of {{ totalPages() }}</span>
+      <app-button variant="secondary" [disabled]="page() === 0" (click)="changePage(page() - 1)">Previous</app-button>
+      <app-button variant="secondary" [disabled]="page() >= totalPages() - 1" (click)="changePage(page() + 1)">Next</app-button>
+    </div>
+  </div>
+}
+
+<app-modal [open]="modalOpen()" [title]="editing() ? 'Edit Customer' : 'New Customer'" (close)="closeModal()">
+  @if (formError()) {
+    <app-alert class="mb-4 block" [message]="formError()!" type="error" />
+  }
+  <form [formGroup]="form" class="form-grid" (ngSubmit)="save()">
+    <div class="form-field sm:col-span-2">
+      <label>Company Name <span class="required">*</span></label>
+      <input class="app-input" formControlName="companyName" [class.input-error]="fieldError('companyName')" />
+      @if (fieldError('companyName')) {
+        <span class="field-error">{{ fieldError('companyName') }}</span>
+      }
+    </div>
+    <div class="form-field">
+      <label>Contact Name <span class="required">*</span></label>
+      <input class="app-input" formControlName="contactName" [class.input-error]="fieldError('contactName')" />
+      @if (fieldError('contactName')) {
+        <span class="field-error">{{ fieldError('contactName') }}</span>
+      }
+    </div>
+    <div class="form-field">
+      <label>Email <span class="required">*</span></label>
+      <input class="app-input" type="email" formControlName="email" [class.input-error]="fieldError('email')" />
+      @if (fieldError('email')) {
+        <span class="field-error">{{ fieldError('email') }}</span>
+      }
+    </div>
+    <div class="form-field">
+      <label>Phone</label>
+      <input class="app-input" formControlName="phone" />
+    </div>
+    <div class="form-field">
+      <label>Status</label>
+      <select class="app-input" formControlName="status">
+        @for (s of statuses; track s) {
+          <option [value]="s">{{ s }}</option>
+        }
+      </select>
+    </div>
+    <div class="form-field">
+      <label>Industry</label>
+      <select class="app-input" formControlName="industry">
+        <option value="">—</option>
+        @for (i of industries; track i) {
+          <option [value]="i">{{ i }}</option>
+        }
+      </select>
+    </div>
+    <div class="form-field sm:col-span-2">
+      <label>Address</label>
+      <input class="app-input" formControlName="address" />
+    </div>
+    <div class="form-field">
+      <label>City</label>
+      <input class="app-input" formControlName="city" />
+    </div>
+    <div class="form-field">
+      <label>Country</label>
+      <select class="app-input" formControlName="country">
+        <option value="">—</option>
+        @for (c of countries; track c) {
+          <option [value]="c">{{ c }}</option>
+        }
+      </select>
+    </div>
+    <div class="form-field sm:col-span-2">
+      <label>Notes</label>
+      <textarea class="app-input min-h-[88px] resize-y" formControlName="notes"></textarea>
+    </div>
+  </form>
+  <div modal-footer class="flex justify-end gap-2">
+    <app-button variant="secondary" type="button" (click)="closeModal()">Cancel</app-button>
+    <app-button [loading]="saving()" (click)="save()">Save Customer</app-button>
+  </div>
+</app-modal>
+
+<app-modal [open]="auditModalOpen()" [title]="'Audit Log — ' + (auditCustomer()?.companyName ?? '')" (close)="closeAudit()">
+  @if (auditLoading()) {
+    <app-loading-spinner />
+  } @else if (auditLogs().length === 0) {
+    <p class="text-sm text-slate-500">No audit entries for this customer.</p>
+  } @else {
+    <div class="audit-timeline">
+      @for (log of auditLogs(); track log.id) {
+        <div class="audit-item">
+          <div class="audit-dot"></div>
+          <div class="audit-content">
+            <div class="audit-header">
+              <span class="audit-action">{{ auditActionLabel(log.action) }}</span>
+              <span class="audit-time">{{ log.performedAt | date: 'medium' }}</span>
+            </div>
+            <p class="audit-by">by {{ log.performedBy }}</p>
+            @if (log.fieldName) {
+              <p class="audit-detail">
+                <strong>{{ log.fieldName }}</strong>:
+                <span class="old-value">{{ log.oldValue || '—' }}</span>
+                →
+                <span class="new-value">{{ log.newValue || '—' }}</span>
+              </p>
+            } @else if (log.newValue) {
+              <p class="audit-detail">{{ log.newValue }}</p>
+            }
+          </div>
+        </div>
+      }
+    </div>
+  }
+  <div modal-footer class="flex justify-end">
+    <app-button variant="secondary" (click)="closeAudit()">Close</app-button>
+  </div>
+</app-modal>
+
+<app-confirm-dialog
+  [open]="confirmOpen()"
+  title="Delete customer?"
+  [message]="deleteConfirmMessage()"
+  confirmLabel="Delete"
+  cancelLabel="Cancel"
+  tone="danger"
+  [loading]="deleting()"
+  (confirm)="confirmDelete()"
+  (cancel)="cancelDelete()"
+/>

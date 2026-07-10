@@ -1,0 +1,23 @@
+# HTTP redirect mode — redirects to HTTPS (except health + ACME)
+# Used when NGINX_SSL_ENABLED=true
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name _;
+
+    location /health {
+        access_log off;
+        default_type text/plain;
+        return 200 'ok';
+    }
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        allow all;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
