@@ -4,7 +4,7 @@
 server {
     listen 80;
     listen [::]:80;
-    server_name _;
+    server_name crm.topnet.local;
 
     location /health {
         access_log off;
