@@ -1,20 +1,14 @@
-# HTTP-only mode — serves the full application on port 80
-# Used when NGINX_SSL_ENABLED=false
+# =============================================================================
+# TOPNET CRM — HTTP server (port 80)
+# Used when SSL is disabled or to redirect to HTTPS
+# =============================================================================
 
 server {
-    listen 443 ssl;
+    listen 80;
+    listen [::]:80;
     server_name crm.topnet.local;
 
-    ssl_certificate     /etc/nginx/ssl/fullchain.pem;
-    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
+    include /etc/nginx/snippets/security-headers.conf;
 
-    location / {
-        proxy_pass http://frontend:80;
-    }
-
-    location /api {
-        proxy_pass http://backend:8080;
-    }
+    include /etc/nginx/conf.d/locations.inc;
 }
-
-
