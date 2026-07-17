@@ -2,15 +2,19 @@
 # Used when NGINX_SSL_ENABLED=false
 
 server {
-    listen 80;
-    listen [::]:80;
-    server_name _;
+    listen 443 ssl;
+    server_name crm.topnet.local;
 
-    location /health {
-        access_log off;
-        default_type text/plain;
-        return 200 'ok';
+    ssl_certificate     /etc/nginx/ssl/fullchain.pem;
+    ssl_certificate_key /etc/nginx/ssl/privkey.pem;
+
+    location / {
+        proxy_pass http://frontend:80;
     }
 
-    include /etc/nginx/conf.d/locations.inc;
+    location /api {
+        proxy_pass http://backend:8080;
+    }
 }
+
+
